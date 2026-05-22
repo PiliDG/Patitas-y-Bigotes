@@ -1,0 +1,3 @@
+# Requisitos del backend (Render/CI instalará desde aquí)
+flask==3.0.3
+

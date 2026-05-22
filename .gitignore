@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node/npm (por si agregas tooling)
+node_modules/
+
+# VSCode
+.vscode/
+
+# Temp scratch files created during exploration
+tmp_*
+*.tmp
+# Archivos temporales sueltos en la raíz
+/tmp*
+
+# Uploaded media (keep folders via .gitkeep)
+backend/media/*
+!backend/media/.gitkeep
+backend/media/animals/*
+!backend/media/animals/.gitkeep
+

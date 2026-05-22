@@ -1,0 +1,849 @@
+import { listMyApplications, updateApplication, cancelApplication } from '../services/adoptionsService.js';
+import { listMyVisits, confirmMyVisit, requestMyVisitChange, createMyVisitRequest } from '../services/visitsService.js';
+import { listMyFollowUps, createMyFollowUp, updateMyFollowUp } from '../services/followupsService.js';
+import { showToast } from '../components/Toast.js';
+import { ROUTE_NAMES, WHATSAPP_URL } from '../config.js';
+
+const STATUS_COLORS = {
+  solicitud: {
+    'Pendiente': 'badge--pending',
+    'En revisión': 'badge--review',
+    'Aprobada': 'badge--success',
+    'Rechazada': 'badge--error',
+    'Con visita programada': 'badge--info',
+    'Cancelada': 'badge--neutral',
+    'Anulada': 'badge--neutral',
+  },
+  visita: {
+    'Pendiente': 'badge--pending',
+    'Programada': 'badge--success',
+    'Cancelada': 'badge--error'
+  },
+  seguimiento: {
+    'Activo': 'badge--success',
+    'Pendiente': 'badge--pending',
+    'Finalizado': 'badge--success',
+    'Cancelado': 'badge--neutral'
+  }
+};
+
+function badge(label, kind, fallback = 'badge--neutral') {
+  const cls = STATUS_COLORS[kind]?.[label] || fallback;
+  return `<span class="status-pill ${cls}">${label || ''}</span>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString(); } catch { return ''; }
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString()} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } catch { return ''; }
+}
+
+function buildLayout(container) {
+  container.innerHTML = `
+    <section class="dashboard-header operator-header">
+      <div>
+        <h1>Mis solicitudes</h1>
+        <p>Podés consultar, actualizar o cancelar tus solicitudes de adopción.</p>
+      </div>
+      <div>
+        <button type="button" class="btn-primary" data-nueva-solicitud>Solicitar adopción</button>
+        <button type="button" class="btn-secondary" data-open-visit-request>Solicitar visita</button>
+      </div>
+    </section>
+    <section class="operator-shell">
+      <div class="operator-main" data-main>
+        <div class="dashboard-card" data-visit-banner style="display:none"></div>
+        <section class="dashboard-card" data-visit-request-card hidden>
+          <header class="dashboard-card__header">
+            <h2>Solicitar visita</h2>
+          </header>
+          <form data-visit-request>
+            <div class="inline-form">
+              <label><span>Solicitud</span>
+                <select name="SolicitudId" data-request-sel required></select>
+              </label>
+              <label><span>Modalidad</span>
+                <select name="Modalidad" data-visita-modalidad>
+                  <option value="Presencial">Presencial</option>
+                  <option value="Domiciliaria">Domiciliaria</option>
+                  <option value="Virtual">Virtual</option>
+                </select>
+              </label>
+              <label data-visita-direccion-wrap style="display:none"><span>Dirección</span>
+                <input name="Direccion" placeholder="Calle, número, ciudad" />
+              </label>
+              <label><span>Fecha/hora sugerida</span>
+                <input name="FechaHoraSugerida" type="datetime-local" data-visita-fecha />
+              </label>
+            </div>
+            <label class="full"><span>Comentarios</span>
+              <textarea name="Comentarios" rows="2" placeholder="Ej.: disponibilidad horaria"></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn-secondary">Enviar solicitud</button>
+              <button type="button" class="btn-link" data-close-visit-request>Cancelar</button>
+            </div>
+            <div class="form-feedback" data-visit-request-fb></div>
+          </form>
+        </section>
+        <section class="dashboard-card" data-solicitudes>
+          <header class="dashboard-card__header">
+            <h2>Listado</h2>
+          </header>
+          <div class="table-scroller" style="overflow:auto">
+            <table class="data-table" data-table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Tipo</th>
+                  <th>Animal</th>
+                  <th>Creada</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="muted" data-empty style="display:none; padding:12px">Todavía no iniciaste ninguna solicitud. Explorá nuestros animales disponibles y comenzá tu proceso de adopción.</div>
+        </section>
+        <section class="dashboard-card" data-detalle>
+          <h2>Detalle</h2>
+          <div class="detail-placeholder muted">Seleccioná una solicitud para ver más información</div>
+        </section>
+      </div>
+      <aside class="operator-side">
+        <article class="summary-card">
+          <header class="summary-card__header">
+            <h2>Resumen reciente</h2>
+            <p class="muted" data-summary-updated>Actualizado…</p>
+          </header>
+          <div class="summary-tabs" role="tablist">
+            <button type="button" class="summary-tab is-active" role="tab" aria-selected="true" aria-controls="sum-solicitudes" id="tab-sum-solicitudes">📝 Adopciones</button>
+            <button type="button" class="summary-tab" role="tab" aria-selected="false" aria-controls="sum-visitas" id="tab-sum-visitas">🗓️ Visitas</button>
+            <button type="button" class="summary-tab" role="tab" aria-selected="false" aria-controls="sum-adoptados" id="tab-sum-adoptados">🐾 Seguimiento</button>
+          </div>
+          <div id="sum-solicitudes" role="tabpanel" aria-labelledby="tab-sum-solicitudes">
+            <div class="summary-list" data-resumen-solicitudes></div>
+            <div class="muted" data-resumen-solicitudes-empty style="display:none">Sin actividad reciente.</div>
+          </div>
+          <div id="sum-visitas" role="tabpanel" hidden aria-labelledby="tab-sum-visitas">
+            <div class="summary-list" data-resumen-visitas></div>
+            <div class="muted" data-resumen-visitas-empty style="display:none">No hay visitas próximas.</div>
+          </div>
+          <div id="sum-adoptados" role="tabpanel" hidden aria-labelledby="tab-sum-adoptados">
+            <div class="summary-list" data-resumen-adoptados></div>
+            <div class="muted" data-resumen-adoptados-empty style="display:none">Aún no tenés seguimientos activos.</div>
+          </div>
+        </article>
+      </aside>
+    </section>
+  `;
+}
+
+function buildDetalle(s, visitas, seguimientos, selectedVisit) {
+  // Si el usuario hizo clic en una fila de Visita, priorizar esa
+  let visitaDeEsta = null;
+  if (selectedVisit && Number(selectedVisit.SolicitudId) === Number(s.Id)) {
+    visitaDeEsta = selectedVisit;
+  } else {
+    visitaDeEsta = (visitas || []).find(
+      (v) => Number(v.SolicitudId) === Number(s.Id) && (v.EstadoSolicitud || '') === 'Programada',
+    );
+  }
+  const segsDeEsta = (seguimientos || []).filter((x) => Number(x.SolicitudId) === Number(s.Id));
+  const segDomiActivo = segsDeEsta.find((x) => (x.TipoSeguimiento || '').toLowerCase() === 'domiciliario' && (x.EstadoSeguimiento || '') !== 'Finalizado' && (x.EstadoSeguimiento || '') !== 'Cancelado');
+  const estadoLabel = (s.EstadoSolicitud || '').trim();
+  return `
+    <div class="detail-grid">
+      <div>
+        <dt>Código</dt><dd>${s.IdSolicitud || s.Id}</dd>
+      </div>
+      <div>
+        <dt>Animal</dt><dd><a href="${ROUTE_NAMES.petDetail(s.AnimalId)}">#${s.AnimalId}</a> ${s.AnimalNombre ? `· ${s.AnimalNombre}` : ''}</dd>
+      </div>
+      <div>
+        <dt>Creada</dt><dd>${fmtDate(s.FechaSolicitud)}</dd>
+      </div>
+      <div>
+        <dt>Estado</dt><dd>${badge(estadoLabel, 'solicitud')}</dd>
+      </div>
+      <div class="full">
+        <dt>Comentarios</dt><dd>${s.Comentarios || '—'}</dd>
+      </div>
+      ${s.MotivoRechazo ? `<div class="full"><dt>Motivo de rechazo</dt><dd>${s.MotivoRechazo}</dd></div>` : ''}
+    </div>
+    <div class="form-actions" style="margin-top:12px">
+      ${(estadoLabel === 'Pendiente' || estadoLabel.startsWith('En revisión')) ? `<button type="button" class="btn-tertiary" data-cancelar>Cancelar solicitud</button>` : ''}
+      <a class="btn-secondary" href="${WHATSAPP_URL}" target="_blank" rel="noreferrer">Contactar operador</a>
+    </div>
+    <hr />
+
+    ${visitaDeEsta ? `
+      <div class="panel" style="margin-top:12px; padding:12px; border-radius:12px; background: rgba(242,140,171,0.08)">
+        <p><strong>Visita</strong> <span class="status-pill">${visitaDeEsta.EstadoSolicitud || ''}</span></p>
+        ${visitaDeEsta.FechaHoraVisita ? `<p><strong>Fecha/hora:</strong> ${fmtDateTime(visitaDeEsta.FechaHoraVisita)}</p>` : ''}
+        <p><strong>Modalidad:</strong> ${visitaDeEsta.Modalidad || '—'}</p>
+        <p><strong>Dirección:</strong> ${visitaDeEsta.Direccion || '—'}</p>
+        ${visitaDeEsta.Motivo ? `<p><strong>Notas:</strong> ${visitaDeEsta.Motivo}</p>` : ''}
+        ${(visitaDeEsta.EstadoSolicitud || '') === 'Programada' ? `
+          <div class="form-actions">
+            <button type="button" class="btn-primary" data-confirmar-visita data-visita-id="${visitaDeEsta.Id}">Confirmar asistencia</button>
+            <button type="button" class="btn-secondary" data-reprogramar-visita data-visita-id="${visitaDeEsta.Id}">Solicitar cambio</button>
+          </div>
+        ` : ''}
+      </div>
+    ` : `
+      <div class="panel" style="margin-top:12px; padding:12px; border-radius:12px; background:#fff">
+        <p><strong>Solicitar visita</strong></p>
+        <div class="form-actions" style="margin-bottom:8px">
+          <button type="button" class="btn-secondary" data-open-visit-request-for="${s.Id}">Solicitar visita</button>
+        </div>
+        <div data-request-visit-removed hidden>
+          <div class="inline-form">
+            <label><span>Modalidad</span>
+              <select name="Modalidad" data-rq-modalidad>
+                <option value="Presencial">Presencial</option>
+                <option value="Domiciliaria">Domiciliaria</option>
+                <option value="Virtual">Virtual</option>
+              </select>
+            </label>
+            <label data-rq-direccion-wrap style="display:none"><span>Dirección</span>
+              <input name="Direccion" placeholder="Calle, número, ciudad" />
+            </label>
+            <label><span>Fecha/hora sugerida</span>
+              <input name="FechaHoraSugerida" type="datetime-local" data-rq-fecha />
+            </label>
+          </div>
+          <label class="full"><span>Comentarios</span><textarea name="Comentarios" rows="2" placeholder="Ej.: disponibilidad horaria"></textarea></label>
+          <div class="form-actions">
+            <button type="submit" class="btn-secondary">Solicitar visita</button>
+          </div>
+          <div class="form-feedback" data-visit-request-feedback></div>
+        </div>
+      </div>
+    `}
+    ${segDomiActivo ? `
+      <div class="panel" style="margin-top:12px; padding:12px; border-radius:12px; background: #fff">
+        <p><strong>Seguimiento domiciliario activo:</strong> Completá tu reporte 📷</p>
+        <form data-form-seg>
+          <label class="full"><span>Descripción / comentarios</span><textarea name="Observaciones" rows="3" required></textarea></label>
+          <label class="full"><span>Comportamiento</span><input name="Comportamiento" placeholder="Tranquilo, juguetón, etc." /></label>
+          <label class="full"><span>Foto (opcional)</span><input name="Adjuntos" type="file" accept="image/*" data-file /></label>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enviar reporte</button>
+            <button type="button" class="btn-link" data-finalizar>Marcar seguimiento como finalizado</button>
+          </div>
+          <div class="form-feedback" aria-live="polite"></div>
+        </form>
+      </div>
+    ` : ''}
+  `;
+}
+
+export default function renderDashboardAdopter(container) {
+  buildLayout(container);
+
+  const btnNueva = container.querySelector('[data-nueva-solicitud]');
+  btnNueva?.addEventListener('click', () => {
+    const url = new URL(ROUTE_NAMES.adopt, window.location.origin);
+    window.history.pushState({}, '', url.pathname + url.search);
+    window.dispatchEvent(new Event('popstate'));
+  });
+
+  const tbody = container.querySelector('[data-table] tbody');
+  const emptyNode = container.querySelector('[data-empty]');
+  const detalle = container.querySelector('[data-detalle]');
+  const visitBanner = container.querySelector('[data-visit-banner]');
+  const requestCard = container.querySelector('[data-visit-request-card]');
+  const openRequest = container.querySelector('[data-open-visit-request]');
+  const closeRequest = container.querySelector('[data-close-visit-request]');
+  const requestForm = container.querySelector('[data-visit-request]');
+  const requestSel = container.querySelector('[data-request-sel]');
+  const summaryUpdated = container.querySelector('[data-summary-updated]');
+
+  let state = { solicitudes: [], visitas: [], seguimientos: [], selected: null };
+
+  function populateRequestSelect() {
+    if (!requestSel) return;
+    const options = state.solicitudes
+      .filter(s => {
+        const st = (s.EstadoSolicitud || '').toLowerCase();
+        return st === 'pendiente' || st.startsWith('en revis');
+      })
+      .map(s => `<option value="${s.Id}">#${s.IdSolicitud || s.Id} · ${s.AnimalNombre || ('#'+(s.AnimalId||''))}</option>`)
+      .join('');
+    requestSel.innerHTML = options || '';
+  }
+
+  function renderBanner() {
+    const upcoming = state.visitas
+      .slice()
+      .filter(v => (v.EstadoSolicitud||'') === 'Programada')
+      .sort((a,b) => Date.parse(a.FechaHoraVisita||0) - Date.parse(b.FechaHoraVisita||0))[0];
+    if (!upcoming) { visitBanner.style.display = 'none'; visitBanner.innerHTML=''; return; }
+    visitBanner.style.display = '';
+    visitBanner.innerHTML = `
+      <div class="operator-panel">
+        <h3>Próxima visita</h3>
+        <p>${upcoming.AnimalNombre ? `<strong>${upcoming.AnimalNombre}</strong> · ` : ''}${fmtDateTime(upcoming.FechaHoraVisita)} · ${upcoming.Direccion || 'A coordinar'}</p>
+        <div class="form-actions">
+          <button class="btn-primary" data-confirmar-visita data-visita-id="${upcoming.Id}">Confirmar asistencia</button>
+          <button class="btn-secondary" data-reprogramar-visita data-visita-id="${upcoming.Id}">Solicitar cambio</button>
+        </div>
+      </div>`;
+  }
+
+  function renderSolicitudes() {
+    // Unificar solicitudes de adopción, visitas y seguimientos en una sola tabla
+    const sRows = state.solicitudes.map((s) => ({
+      kind: 's',
+      id: s.Id,
+      sid: s.Id,
+      code: s.IdSolicitud || s.Id,
+      type: 'Adopción',
+      animal: s.AnimalNombre || ('#' + (s.AnimalId || '')),
+      date: s.FechaSolicitud,
+      estado: (s.EstadoSolicitud || '').trim(),
+    }));
+    const vRows = (state.visitas || []).map((v) => ({
+      kind: 'v',
+      id: v.Id,
+      sid: v.SolicitudId,
+      code: v.IdVisita || v.Id,
+      type: 'Visita',
+      animal: v.AnimalNombre || '',
+      // Mostrar fecha de creación de la solicitud si la visita no tiene turno asignado
+      date: v.FechaHoraVisita || v.SolicitudFecha,
+      estado: (v.EstadoSolicitud || '').trim(),
+    }));
+    const fRows = (state.seguimientos || []).map((f) => {
+      const s = (state.solicitudes || []).find((x) => Number(x.Id) === Number(f.SolicitudId));
+      const animalTxt = s?.AnimalNombre || (s?.AnimalId ? ('#' + s.AnimalId) : '');
+      return {
+        kind: 'f',
+        id: f.Id,
+        sid: f.SolicitudId,
+        code: f.IdSeguimiento || f.Id,
+        type: 'Seguimiento',
+        animal: animalTxt,
+        date: f.FechaSeguimiento || f.Fecha || f.FechaCreacion,
+        estado: (f.EstadoSeguimiento || '').trim(),
+      };
+    });
+    const merged = sRows.concat(vRows).concat(fRows).sort((a, b) => Date.parse(b.date || 0) - Date.parse(a.date || 0));
+    if (!merged.length) { emptyNode.style.display=''; tbody.innerHTML=''; return; }
+    emptyNode.style.display='none';
+    tbody.innerHTML = merged.map((r) => `
+      <tr data-kind="${r.kind}" data-row-id="${r.id}" data-sid="${r.sid}">
+        <td>${r.code}</td>
+        <td>${r.type || (r.kind==='s'?'Adopción':(r.kind==='v'?'Visita':'Seguimiento'))}</td>
+        <td>${r.animal}</td>
+        <td>${fmtDate(r.date)}</td>
+        <td>${r.kind === 's' ? badge(r.estado, 'solicitud') : (r.kind === 'v' ? badge(r.estado, 'visita') : badge(r.estado, 'seguimiento'))}</td>
+        <td><button type="button" class="btn-link" data-ver>Ver</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-ver]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tr = btn.closest('tr');
+        const kind = tr?.dataset?.kind;
+        const sid = tr?.dataset?.sid;
+        // Cerrar panel superior si estuviera abierto
+        try { if (requestCard) requestCard.hidden = true; } catch {}
+        // Limpiar selección previa de visita específica
+        state.selectedVisit = null;
+        if (kind === 's') {
+          state.selected = state.solicitudes.find((x) => String(x.Id) === String(sid));
+        } else if (kind === 'v') {
+          // Ir al detalle de la solicitud vinculada y mostrar la visita seleccionada
+          state.selected = state.solicitudes.find((x) => String(x.Id) === String(sid));
+          const rowId = tr?.dataset?.rowId;
+          const visit = (state.visitas || []).find((v) => String(v.Id) === String(rowId));
+          if (visit) state.selectedVisit = visit;
+        } else if (kind === 'f') {
+          // Seleccionar la solicitud vinculada al seguimiento
+          state.selected = state.solicitudes.find((x) => String(x.Id) === String(sid));
+        }
+        // Cerrar cualquier panel superior abierto y re-enfocar el detalle
+        // Opcional: marcar fila activa
+        try {
+          tbody.querySelectorAll('tr').forEach((row) => row.classList.remove('is-active'));
+          tr?.classList.add('is-active');
+        } catch {}
+        renderDetalle();
+        try { detalle.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch {}
+      });
+    });
+  }
+
+  function renderDetalle() {
+    const s = state.selected;
+    if (!s) {
+      detalle.innerHTML = '<div class="detail-placeholder muted">Seleccioná una solicitud para ver más información</div>';
+      return;
+    }
+    detalle.innerHTML = buildDetalle(s, state.visitas, state.seguimientos, state.selectedVisit);
+    const cancelBtn = detalle.querySelector('[data-cancelar]');
+    cancelBtn?.addEventListener('click', async () => {
+      try {
+        const motivo = prompt('Motivo de cancelación'); if (motivo===null) return;
+        const response = await cancelApplication(s.Id, { Motivo: motivo || 'Cancelada por el adoptante' });
+        showToast('success', response?.message || 'Solicitud cancelada');
+        await refresh();
+        // Re-seleccionar la solicitud actualizada para que el detalle refleje el nuevo estado
+        try {
+          const updated = (state.solicitudes || []).find(x => Number(x.Id) === Number(s.Id));
+          if (updated) {
+            state.selected = updated;
+            detalle.innerHTML = buildDetalle(updated, state.visitas, state.seguimientos, state.selectedVisit);
+          }
+        } catch {}
+      } catch (error) {
+        showToast('error', error.message || 'No se pudo cancelar');
+      }
+    });
+    detalle.querySelectorAll('[data-confirmar-visita]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const id = b.dataset.visitaId;
+          const r = await confirmMyVisit(id);
+          showToast('success', r?.message || 'Tu visita fue confirmada');
+          await refresh('visitas');
+          try {
+            const updated = (state.solicitudes || []).find(x => Number(x.Id) === Number(s.Id));
+            if (updated) { state.selected = updated; detalle.innerHTML = buildDetalle(updated, state.visitas, state.seguimientos, state.selectedVisit); }
+          } catch {}
+        } catch (e) { showToast('error', e.message || 'No se pudo confirmar'); }
+      });
+    });
+    detalle.querySelectorAll('[data-reprogramar-visita]')?.forEach((b) => {
+      b.addEventListener('click', async () => {
+        const sugerida = prompt('Indicá una nueva fecha/hora sugerida (ej. 2025-10-25 15:00)');
+        try {
+          const id = b.dataset.visitaId;
+          const r = await requestMyVisitChange(id, { NuevaFechaHora: sugerida || '', Motivo: 'Reprogramación solicitada por el adoptante' });
+          showToast('success', r?.message || 'Solicitud enviada');
+          await refresh('visitas');
+          try {
+            const updated = (state.solicitudes || []).find(x => Number(x.Id) === Number(s.Id));
+            if (updated) { state.selected = updated; detalle.innerHTML = buildDetalle(updated, state.visitas, state.seguimientos, state.selectedVisit); }
+          } catch {}
+        } catch (e) { showToast('error', e.message || 'No se pudo solicitar el cambio'); }
+      });
+    });
+    // Intercepta 'Solicitar cambio' para mostrar formulario estilizado
+    try {
+      detalle.querySelectorAll('[data-reprogramar-visita]')?.forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+          const holder = btn.closest('[data-visita-programada]') || detalle;
+          let form = holder.querySelector('[data-reprogram-form]');
+          if (!form) {
+            const node = document.createElement('div');
+            node.innerHTML = `<form class="inline-form" data-reprogram-form>
+              <label class="full"><span>Nueva fecha y hora</span>
+                <input name="NuevaFechaHora" type="datetime-local" required />
+              </label>
+              <label class="full"><span>Motivo</span>
+                <textarea name="Motivo" rows="2" placeholder="Ej.: inconveniente de horario o traslado"></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit" class="btn-secondary">Enviar solicitud</button>
+                <button type="button" class="btn-link" data-reprogram-cancel>Cancelar</button>
+              </div>
+              <div class="form-feedback" aria-live="polite" data-reprogram-fb></div>
+            </form>`;
+            holder.appendChild(node.firstElementChild);
+            form = holder.querySelector('[data-reprogram-form]');
+            const fecha = form.querySelector('input[name="NuevaFechaHora"]');
+            if (fecha) {
+              try {
+                const now = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const v = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                fecha.min = v;
+              } catch {}
+            }
+            const fb = form.querySelector('[data-reprogram-fb]');
+            form.querySelector('[data-reprogram-cancel]')?.addEventListener('click', () => form.remove());
+            form.addEventListener('submit', async (e2) => {
+              e2.preventDefault();
+              const payload = Object.fromEntries(new FormData(form));
+              try {
+                fb.innerHTML = '<p class="pending-text">Enviando…</p>';
+                const id = btn.dataset.visitaId;
+                await requestMyVisitChange(id, payload);
+                fb.innerHTML = '<p class="success-text">Solicitud enviada. Esperá la confirmación.</p>';
+                await refresh('visitas');
+                setTimeout(() => form.remove(), 300);
+              } catch (err) {
+                fb.innerHTML = `<p class=\"error-text\">${err.message || 'No se pudo solicitar el cambio'}</p>`;
+              }
+            });
+          }
+        }, { capture: true });
+      });
+    } catch {}
+    // Abrir el panel superior de "Solicitar visita" desde el detalle
+    try {
+      const openForBtn = detalle.querySelector('[data-open-visit-request-for]');
+      if (openForBtn) {
+        openForBtn.addEventListener('click', () => {
+          try {
+            populateRequestSelect();
+            if (!requestSel?.options?.length) {
+              showToast('info', 'Primero cre una solicitud de adopcin.');
+              return;
+            }
+            if (requestSel) requestSel.value = String(s.Id);
+            requestCard.hidden = false;
+            requestForm?.reset();
+            if (requestSel) requestSel.value = String(s.Id);
+            container.querySelector('[data-visit-request-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch {}
+        });
+      }
+    } catch {}
+    // Solicitud de visita (cuando no hay programada)
+    const rqForm = detalle.querySelector('[data-request-visit]');
+    if (rqForm) {
+      const modSel = rqForm.querySelector('[data-rq-modalidad]');
+      const dirWrap = rqForm.querySelector('[data-rq-direccion-wrap]');
+      const fechaInput = rqForm.querySelector('[data-rq-fecha]');
+      const updateRqUI = () => {
+        const home = (modSel?.value || '').toLowerCase().startsWith('domic');
+        if (dirWrap) dirWrap.style.display = home ? '' : 'none';
+        const dir = dirWrap?.querySelector('input[name="Direccion"]');
+        if (dir) dir.required = home;
+        if (fechaInput) {
+          try {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2,'0');
+            const v = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            fechaInput.min = v;
+          } catch {}
+        }
+      };
+      modSel?.addEventListener('change', updateRqUI);
+      updateRqUI();
+      rqForm.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const payload = Object.fromEntries(new FormData(rqForm));
+        payload.SolicitudId = Number(s.Id);
+        if (s.AnimalId) payload.AnimalId = Number(s.AnimalId);
+        const fb = detalle.querySelector('[data-visit-request-feedback]');
+        payload.Direccion = (payload.Direccion || '').trim();
+        payload.Comentarios = (payload.Comentarios || '').trim();
+        const isHome = String(payload.Modalidad || '').toLowerCase().startsWith('domic');
+        if (isHome && !payload.Direccion) {
+          fb.innerHTML = '<p class="error-text">Indicá la dirección para una visita domiciliaria.</p>';
+          return;
+        }
+        try {
+          fb.innerHTML = '<p class="pending-text">Enviando solicitud...</p>';
+          await createMyVisitRequest(payload);
+          fb.innerHTML = '<p class="success-text">Visita solicitada. Esperá la confirmación del operador.</p>';
+          await refresh('visitas');
+        } catch (error) {
+          fb.innerHTML = `<p class="error-text">${error.message || 'No se pudo registrar la solicitud.'}</p>`;
+        }
+      });
+    }
+    const formSeg = detalle.querySelector('[data-form-seg]');
+    if (formSeg) {
+      const toDataUrl = (file) => new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.readAsDataURL(file); });
+      const fb = formSeg.querySelector('.form-feedback');
+      formSeg.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        fb.innerHTML = '<p class="pending-text">Enviando…</p>';
+        try {
+          let adj = '';
+          const f = formSeg.querySelector('[data-file]')?.files?.[0];
+          if (f) adj = await toDataUrl(f);
+          const payload = {
+            SolicitudId: s.Id,
+            Observaciones: formSeg.elements.Observaciones.value,
+            Comportamiento: formSeg.elements.Comportamiento.value,
+            Adjuntos: adj
+          };
+          const r = await createMyFollowUp(payload);
+          showToast('success', r?.message || 'Reporte enviado');
+          fb.innerHTML = '<p class="success-text">¡Gracias! Tu reporte fue recibido.</p>';
+          formSeg.reset();
+          await refresh('seguimientos');
+        } catch (e) { fb.innerHTML = `<p class="error-text">${e.message || 'No se pudo enviar'}</p>`; }
+      });
+      formSeg.querySelector('[data-finalizar]')?.addEventListener('click', async () => {
+        try {
+          const seg = state.seguimientos.find((x)=> Number(x.SolicitudId)===Number(s.Id) && (x.TipoSeguimiento||'').toLowerCase()==='domiciliario' && (x.EstadoSeguimiento||'')!=='Finalizado');
+          if (!seg) { showToast('error', 'No hay seguimiento activo para finalizar'); return; }
+          const r = await updateMyFollowUp(seg.Id, { EstadoSeguimiento: 'Finalizado' });
+          showToast('success', r?.message || 'Seguimiento domiciliario finalizado');
+          await refresh('seguimientos');
+          renderDetalle();
+        } catch (e) { showToast('error', e.message || 'No se pudo finalizar'); }
+      });
+    }
+  }
+
+  function renderResumen() {
+    const nowStr = new Date().toLocaleString('es-AR');
+    if (summaryUpdated) summaryUpdated.textContent = `Actualizado el ${nowStr}`;
+
+    const tabs = [
+      { btn: '#tab-sum-solicitudes', panel: '#sum-solicitudes' },
+      { btn: '#tab-sum-visitas', panel: '#sum-visitas' },
+      { btn: '#tab-sum-adoptados', panel: '#sum-adoptados' },
+    ];
+    tabs.forEach(({ btn, panel }) => {
+      const b = container.querySelector(btn);
+      b.onclick = () => {
+        tabs.forEach(({ btn: bb, panel: pp }) => {
+          container.querySelector(bb)?.classList.toggle('is-active', bb === btn);
+          const p = container.querySelector(pp); if (p) p.hidden = pp !== panel;
+        });
+      };
+    });
+
+    const solNode = container.querySelector('[data-resumen-solicitudes]');
+    const solEmpty = container.querySelector('[data-resumen-solicitudes-empty]');
+    const latestSol = state.solicitudes.slice().sort((a,b)=>Date.parse(b.FechaSolicitud||0)-Date.parse(a.FechaSolicitud||0)).slice(0,5);
+    if (!latestSol.length) { solNode.innerHTML=''; solEmpty.style.display=''; } else {
+      solEmpty.style.display='none';
+      solNode.innerHTML = latestSol.map(s => `
+        <button type="button" class="summary-item" data-goto-s="${s.Id}">
+          <span class="summary-icon">📝</span>
+          <div>
+            <strong>${s.AnimalNombre || ('Animal #'+(s.AnimalId||''))}</strong>
+            <p>${fmtDate(s.FechaSolicitud)} · ${(s.EstadoSolicitud||'')}</p>
+          </div>
+          ${badge((s.EstadoSolicitud||'').trim(), 'solicitud')}
+        </button>`).join('');
+      solNode.querySelectorAll('[data-goto-s]')?.forEach((b)=>{ b.addEventListener('click', ()=>{ state.selected = state.solicitudes.find(x=>String(x.Id)===b.dataset.gotoS); renderDetalle(); }); });
+    }
+
+    const vvNode = container.querySelector('[data-resumen-visitas]');
+    const vvEmpty = container.querySelector('[data-resumen-visitas-empty]');
+    const upcoming = state.visitas.slice().filter(v=> (v.EstadoSolicitud||'')==='Programada').sort((a,b)=>Date.parse(a.FechaHoraVisita||0)-Date.parse(b.FechaHoraVisita||0)).slice(0,5);
+    if (!upcoming.length) { vvNode.innerHTML=''; vvEmpty.style.display=''; } else {
+      vvEmpty.style.display='none';
+      vvNode.innerHTML = upcoming.map(v => `
+        <button type="button" class="summary-item" data-goto-visita="${v.SolicitudId}">
+          <span class="summary-icon">🗓️</span>
+          <div>
+            <strong>${v.AnimalNombre || 'Visita'}</strong>
+            <p>${fmtDateTime(v.FechaHoraVisita)} · ${v.Modalidad || ''}</p>
+          </div>
+          ${badge(v.EstadoSolicitud || '', 'visita')}
+        </button>`).join('');
+      vvNode.querySelectorAll('[data-goto-visita]')?.forEach((b)=>{ b.addEventListener('click', ()=>{ state.selected = state.solicitudes.find(x=>String(x.Id)===String(b.dataset.gotoVisita)); renderDetalle(); }); });
+    }
+
+    // Ajuste: incluir visitas 'Pendiente' en el resumen
+    try {
+      const programadas = state.visitas
+        .filter(v => (v.EstadoSolicitud || '') === 'Programada')
+        .sort((a,b)=>Date.parse(a.FechaHoraVisita||0)-Date.parse(b.FechaHoraVisita||0));
+      const pendientes = state.visitas
+        .filter(v => (v.EstadoSolicitud || '') === 'Pendiente')
+        .sort((a,b)=>{
+          const sa = state.solicitudes.find(s=>Number(s.Id)===Number(a.SolicitudId));
+          const sb = state.solicitudes.find(s=>Number(s.Id)===Number(b.SolicitudId));
+          const ta = Date.parse(sa?.FechaActualizacion || sa?.FechaSolicitud || 0) || 0;
+          const tb = Date.parse(sb?.FechaActualizacion || sb?.FechaSolicitud || 0) || 0;
+          return tb - ta; // recientes primero
+        });
+      const visitasResumen = programadas.concat(pendientes).slice(0,5);
+      const parseSugerida = (motivo) => {
+        try {
+          const m = /Sugerida:\s*([0-9:\-T]+)/.exec(String(motivo||''));
+          if (m && m[1]) { const d = new Date(m[1]); if (!Number.isNaN(d.getTime())) return d; }
+        } catch {}
+        return null;
+      };
+      if (!visitasResumen.length) { vvNode.innerHTML=''; vvEmpty.style.display=''; } else {
+        vvEmpty.style.display='none';
+        vvNode.innerHTML = visitasResumen.map(v => {
+          const sug = (!v.FechaHoraVisita && (v.EstadoSolicitud||'')==='Pendiente') ? parseSugerida(v.Motivo) : null;
+          const whenTxt = v.FechaHoraVisita ? fmtDateTime(v.FechaHoraVisita) : (sug ? `Sugerida ${fmtDateTime(sug.toISOString())}` : 'A confirmar');
+          return `
+          <button type="button" class="summary-item" data-goto-visita="${v.SolicitudId}">
+            <span class="summary-icon">*</span>
+            <div>
+              <strong>${v.AnimalNombre || 'Visita'}</strong>
+              <p>${whenTxt} · ${v.Modalidad || ''}</p>
+            </div>
+            ${badge(v.EstadoSolicitud || '', 'visita')}
+          </button>`;
+        }).join('');
+        vvNode.querySelectorAll('[data-goto-visita]')?.forEach((b)=>{ b.addEventListener('click', ()=>{ state.selected = state.solicitudes.find(x=>String(x.Id)===String(b.dataset.gotoVisita)); renderDetalle(); }); });
+      }
+    } catch {}
+    const adNode = container.querySelector('[data-resumen-adoptados]');
+    const adEmpty = container.querySelector('[data-resumen-adoptados-empty]');
+    const adoptados = state.solicitudes.filter(s => (s.EstadoSolicitud||'')==='Aprobada');
+    const segs = state.seguimientos.slice().sort((a,b)=>Date.parse(b.FechaSeguimiento||0)-Date.parse(a.FechaSeguimiento||0)).slice(0,5);
+    const items = (adoptados.length ? adoptados.slice(0,3).map(s => ({ kind:'adoptado', s })) : []).concat(segs.map(seg => ({ kind:'seg', seg })));
+    if (!items.length) { adNode.innerHTML=''; adEmpty.style.display=''; } else {
+      adEmpty.style.display='none';
+      adNode.innerHTML = items.map(it => {
+        if (it.kind === 'adoptado') {
+          const s = it.s; return `
+            <button class="summary-item" type="button" data-goto-s="${s.Id}">
+              <span class="summary-icon">🐾</span>
+              <div><strong>${s.AnimalNombre || ('Animal #'+(s.AnimalId||''))}</strong><p>Adoptado · ${fmtDate(s.FechaActualizacion)}</p></div>
+              ${badge('Aprobada', 'solicitud')}
+            </button>`;
+        }
+        const seg = it.seg; return `
+          <div class="summary-item">
+            <span class="summary-icon">🏠</span>
+            <div><strong>${seg.TipoSeguimiento || 'Seguimiento'}</strong><p>${fmtDate(seg.FechaSeguimiento)} · ${seg.Observaciones || ''}</p></div>
+            ${badge(seg.EstadoSeguimiento || '', 'seguimiento')}
+          </div>`;
+      }).join('');
+      adNode.querySelectorAll('[data-goto-s]')?.forEach((b)=>{ b.addEventListener('click', ()=>{ state.selected = state.solicitudes.find(x=>String(x.Id)===b.dataset.gotoS); renderDetalle(); }); });
+    }
+  }
+
+  async function refresh(only) {
+    if (!only || only==='solicitudes') { try { state.solicitudes = await listMyApplications(); } catch (e) { showToast('error', e.message || 'No se pudieron cargar tus solicitudes. Intentalo más tarde.'); } }
+    if (!only || only==='visitas') { try { state.visitas = await listMyVisits(); } catch { state.visitas = []; } }
+    if (!only || only==='seguimientos') { try { state.seguimientos = await listMyFollowUps(); } catch { state.seguimientos = []; } }
+    // Coherencia de estados: si la solicitud está Cancelada/Anulada/Rechazada, reflejar visitas como Canceladas
+    try {
+      const canceledS = new Set((state.solicitudes || [])
+        .filter((s) => ['Cancelada','Anulada','Rechazada'].includes((s.EstadoSolicitud || '').trim()))
+        .map((s) => Number(s.Id)));
+      if (canceledS.size) {
+        state.visitas = (state.visitas || []).map((v) => (
+          canceledS.has(Number(v.SolicitudId)) ? { ...v, EstadoSolicitud: 'Cancelada' } : v
+        ));
+      }
+    } catch {}
+    // Marcar solicitudes con visita Programada para que aparezcan claramente en el listado
+    try {
+      const programadas = new Set((state.visitas || []).filter(v => (v.EstadoSolicitud||'').trim()==='Programada').map(v => Number(v.SolicitudId)).filter(Boolean));
+      if (programadas.size) {
+        state.solicitudes = (state.solicitudes || []).map(s => (
+          programadas.has(Number(s.Id)) ? { ...s, EstadoSolicitud: 'Con visita programada' } : s
+        ));
+      }
+    } catch {}
+    // Auto-selección: si no hay selección previa, preseleccionar la solicitud
+    // con seguimiento Domiciliario activo más reciente.
+    try {
+      if (!state.selected && Array.isArray(state.seguimientos) && state.seguimientos.length) {
+        const activos = state.seguimientos
+          .filter((f) => (String(f.TipoSeguimiento||'').toLowerCase()==='domiciliario') && !['Finalizado','Cancelado'].includes(String(f.EstadoSeguimiento||'')))
+          .slice()
+          .sort((a,b)=> (Date.parse(b.FechaSeguimiento||b.Fecha||b.FechaCreacion||0) - Date.parse(a.FechaSeguimiento||a.Fecha||a.FechaCreacion||0)));
+        const primero = activos[0];
+        if (primero) {
+          const pre = (state.solicitudes || []).find((s)=> Number(s.Id)===Number(primero.SolicitudId));
+          if (pre) state.selected = pre;
+        }
+      }
+    } catch {}
+    renderBanner();
+    renderSolicitudes();
+    renderDetalle();
+    renderResumen();
+  }
+
+  refresh();
+
+  // --- Solicitar visita (panel superior)
+  openRequest?.addEventListener('click', () => {
+    populateRequestSelect();
+    if (!requestSel?.options?.length) {
+      showToast('info', 'Primero creá una solicitud de adopción.');
+      return;
+    }
+    requestCard.hidden = false;
+    requestForm?.reset();
+  });
+  closeRequest?.addEventListener('click', () => {
+    requestCard.hidden = true;
+  });
+  // Dinámica UI: mostrar dirección cuando es domiciliaria y fijar min fecha
+  const modalidadSel = container.querySelector('[data-visita-modalidad]');
+  const dirWrap = container.querySelector('[data-visita-direccion-wrap]');
+  const fechaInput = container.querySelector('[data-visita-fecha]');
+  const updateVisitFormUI = () => {
+    const isHome = (modalidadSel?.value || '').toLowerCase().startsWith('domic');
+    if (dirWrap) dirWrap.style.display = isHome ? '' : 'none';
+    const dir = dirWrap?.querySelector('input[name="Direccion"]');
+    if (dir) dir.required = isHome;
+    if (fechaInput) {
+      try {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2,'0');
+        const v = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        fechaInput.min = v;
+      } catch {}
+    }
+  };
+  modalidadSel?.addEventListener('change', updateVisitFormUI);
+  updateVisitFormUI();
+
+  requestForm?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const payload = Object.fromEntries(new FormData(requestForm));
+    const fb = container.querySelector('[data-visit-request-fb]');
+    payload.Direccion = (payload.Direccion || '').trim();
+    payload.Comentarios = (payload.Comentarios || '').trim();
+
+    // Robustez: forzar SolicitudId numérico y coherente con el usuario actual
+    let sid = Number(payload.SolicitudId || 0);
+    if (!sid && requestSel) {
+      try {
+        const txt = requestSel.selectedOptions?.[0]?.textContent || '';
+        const m = String(txt).match(/\d+/);
+        if (m) sid = Number(m[0]);
+      } catch {}
+    }
+    if (!sid && Array.isArray(state.solicitudes)) {
+      try {
+        const codeTxt = (requestSel?.selectedOptions?.[0]?.textContent || '').toUpperCase();
+        const found = state.solicitudes.find((s) => codeTxt.includes(String(s.IdSolicitud || '').toUpperCase()));
+        if (found) sid = Number(found.Id);
+      } catch {}
+    }
+    if (sid) payload.SolicitudId = sid;
+    try {
+      const sol = (state.solicitudes || []).find((x) => Number(x.Id) === Number(sid));
+      if (sol?.AnimalId) payload.AnimalId = Number(sol.AnimalId);
+    } catch {}
+    const isHomeTop = String(payload.Modalidad || '').toLowerCase().startsWith('domic');
+    if (isHomeTop && !payload.Direccion) {
+      fb.innerHTML = '<p class="error-text">Indicá la dirección para una visita domiciliaria.</p>';
+      return;
+    }
+    try {
+      fb.innerHTML = '<p class="pending-text">Enviando solicitud...</p>';
+      await createMyVisitRequest(payload);
+      fb.innerHTML = '<p class="success-text">Visita solicitada. Esperá la confirmación del operador.</p>';
+      requestCard.hidden = true;
+      await refresh('visitas');
+    } catch (error) {
+      fb.innerHTML = `<p class="error-text">${error.message || 'No se pudo registrar la solicitud.'}</p>`;
+    }
+  });
+
+  container.querySelectorAll('.summary-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.summary-tab').forEach((b) => b.classList.toggle('is-active', b === btn));
+    });
+  });
+
+  return () => {};
+}
+

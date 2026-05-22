@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: patitasybigotes-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backend/app.py
+    autoDeploy: true
+    envVars:
+      - key: PERSISTENCE
+        value: sqlite
+      - key: DB_FILE
+        value: data/app.db
+      # Expose dev-only helpers so the verification token
+      # is returned by POST /api/auth/registro for debugging
+      - key: ENABLE_DEV_FEATURES
+        value: "1"
+      - key: EXPOSE_VERIFY_TOKEN
+        value: "1"
+      - key: ALLOW_ELEVATE
+        value: "1"
+      # Required by Flask session signing; replace in dashboard if desired
+      - key: SECRET_KEY
+        value: "change-me-please-9h7Jt3p1QqfW8zK2mYbC6nR4sU0aL5vD"
