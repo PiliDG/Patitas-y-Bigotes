@@ -2,40 +2,7 @@
 
 Aplicacion web con frontend estatico y backend Flask que cubre los casos de uso de registro, gestion de animales, solicitudes de adopcion, controles sanitarios, visitas y seguimientos. Lista para desplegar en Render sin instalar nada local.
 
-## Despliegue en Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?repo=LaraFrenkel/PatitasYBigotes&environment=production)
-
-> Botón de un clic: crea un proyecto en Railway apuntando directamente a este repo, lo conecta al espacio “production”, detecta Python y usa el Procfile (`web: python backend/app.py`). No necesitas elegir un template ni configurar nada más. Si haces un fork, sustituye el valor de `repo` por el de tu cuenta.
-
-## Despliegue en Render
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LaraFrenkel/PatitasYBigotes)
-
-> El boton despliega este repositorio. Si haces un fork, reemplaza la URL con la de tu cuenta.
-
-### 1. Preparar el repositorio
-- Sube esta carpeta completa a un repositorio en GitHub (elige rama `main` o la que prefieras).
-- Verifica que `render.yaml`, `backend/` y `frontend/` estén en la raíz del repositorio.
-
-### 2. Conectar Render y aplicar el blueprint
-- En https://render.com pulsa `New` > `Blueprint` y autoriza el acceso a tu cuenta de GitHub si aún no lo hiciste.
-- Selecciona el repositorio y la rama con el proyecto. Render detectará el servicio `patitasybigotes-backend` y mostrará por defecto: Environment Python 3, Build Command `pip install -r requirements.txt`, Start Command `python backend/app.py`, plan Free (o el que prefieras).
-
-### 3. Configurar variables de entorno
-- Añade `SECRET_KEY` con una cadena aleatoria de al menos 32 caracteres (obligatorio).
-- Deja `PERSISTENCE=sqlite` y `DB_FILE=data/app.db` para usar la base SQLite incluida.
-- Opcional: define `ALLOWED_ORIGINS` con las URLs permitidas separadas por coma.
-- Opcional: usa solo en entornos de pruebas `ENABLE_DEV_FEATURES=1`, `EXPOSE_VERIFY_TOKEN=1`, `ALLOW_ELEVATE=1`.
-
-### 4. Persistencia de datos
-- En la vista del servicio, ve a `Settings` > `Disks` y agrega un disco (ej. 1 GB) montado en `data` para conservar `data/app.db` entre despliegues.
-
-### 5. Primer despliegue
-- Pulsa `Apply` para crear el servicio. El backend servirá también los archivos del `frontend/`.
-- Cuando finalice el deploy, visita `https://<tu-servicio>.onrender.com` o el endpoint `/health` para comprobar el estado.
-
-Los pushes a la rama configurada dispararán nuevos despliegues automáticos.
 ## Estructura (alto nivel)
 
 ```
