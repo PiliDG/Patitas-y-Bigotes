@@ -26,3 +26,35 @@ backend/media/*
 backend/media/animals/*
 !backend/media/animals/.gitkeep
 
+# Bases de datos locales (no se versionan)
+data/app.db
+data/smoke_test.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Entornos virtuales de Python
+venv/
+.venv/
+env/
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+
+# Variables de entorno
+.env
+.env.local
+
+# Logs
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
