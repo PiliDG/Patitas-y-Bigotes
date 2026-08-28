@@ -1,129 +1,250 @@
-﻿# Patitas y Bigotes - App Python (Frontend + Backend)
+# Patitas y Bigotes
 
-Aplicacion web con frontend estatico y backend Flask que cubre los casos de uso de registro, gestion de animales, solicitudes de adopcion, controles sanitarios, visitas y seguimientos. Lista para desplegar en Render sin instalar nada local.
+Aplicación web Full Stack desarrollada como proyecto académico grupal para la gestión de rescate, atención y adopción de animales.
 
+El sistema permite gestionar animales, solicitudes de adopción, controles sanitarios, visitas y seguimientos mediante diferentes roles de usuario.
 
-## Estructura (alto nivel)
+<h2>Vista de la aplicación</h2>
 
+<h3>Página principal</h3>
+
+<img src="docs/screenshots/home.png" alt="Página principal de Patitas y Bigotes" width="100%">
+
+<br>
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Proceso de adopción</strong><br><br>
+      <img src="docs/screenshots/adopcion.png" alt="Formulario de adopción">
+    </td>
+    <td width="50%">
+      <strong>Registro de usuarios</strong><br><br>
+      <img src="docs/screenshots/registro.png" alt="Registro de usuarios">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Contacto y consultas</strong><br><br>
+      <img src="docs/screenshots/contacto.png" alt="Página de contacto">
+    </td>
+    <td width="50%">
+      <strong>Donaciones</strong><br><br>
+      <img src="docs/screenshots/donaciones.png" alt="Página de donaciones">
+    </td>
+  </tr>
+</table>
+
+## Mi participación
+
+Durante el proyecto trabajé principalmente en:
+
+* Desarrollo frontend.
+* Análisis funcional y relevamiento de requerimientos.
+* Definición de funcionalidades y roles de usuario.
+* Diseño y adaptación responsive de la interfaz.
+* Evolución del sistema hacia una base de datos relacional.
+* Documentación y seguimiento de funcionalidades.
+
+> Proyecto académico realizado en equipo. Este repositorio es un fork del proyecto original y esta sección describe específicamente mi participación.
+
+## Tecnologías
+
+**Frontend:** HTML, CSS, JavaScript
+**Backend:** Python, Flask, APIs REST
+**Base de datos:** SQLite
+**Testing:** Pytest
+**Control de versiones y CI:** Git, GitHub, GitHub Actions
+**Despliegue:** Render, Railway
+
+## Funcionalidades principales
+
+El sistema contempla diferentes procesos relacionados con la gestión de rescate y adopción de animales:
+
+* Registro y autenticación de usuarios.
+* Alta, modificación, búsqueda y baja de animales.
+* Controles sanitarios.
+* Solicitudes de adopción.
+* Gestión y seguimiento de solicitudes.
+* Programación y gestión de visitas.
+* Seguimiento posterior.
+* Gestión de avisos de entrega de animales.
+
+## Roles de usuario
+
+La aplicación adapta sus funcionalidades según el tipo de usuario:
+
+**Adoptante:** puede consultar animales, realizar solicitudes de adopción y gestionar sus visitas y seguimientos.
+
+**Veterinario:** registra controles sanitarios y seguimientos.
+
+**Operador:** administra animales, solicitudes, visitas y avisos de entrega.
+
+**Entregador:** puede informar sobre un animal para su ingreso al sistema.
+
+La interfaz aplica permisos según el rol del usuario autenticado.
+
+## Arquitectura
+
+El backend utiliza una arquitectura organizada por capas:
+
+`Controllers → Repositories → Persistence`
+
+La aplicación separa dominio, lógica de acceso a datos y persistencia.
+
+La persistencia puede configurarse mediante:
+
+```text
+PERSISTENCE=sqlite
+PERSISTENCE=memory
 ```
+
+El frontend consume los endpoints del backend y adapta la navegación y las vistas según el rol del usuario.
+
+## Estructura del proyecto
+
+```text
 .
-|-- .github/
-|   `-- workflows/
-|       |-- pages.yml                  # Deploy de GitHub Pages (frontend estático)
-|       `-- backend-tests.yml          # CI: ejecuta pytest del backend
-|-- backend/
-|   |-- app.py                         # Entry point Flask
-|   |-- README.md                      # Docs backend
-|   |-- requirements.txt               # Dependencias runtime backend
-|   |-- tests/                         # Pruebas del backend (pytest)
-|   |   |-- conftest.py
-|   |   `-- test_app_basic.py
-|   `-- src/
-|       |-- app.py                     # create_app, static y blueprints
-|       |-- controllers/               # Endpoints
-|       |-- domain/                    # Entidades de negocio
-|       |-- repositories/              # DBroker, factory, SQLite/memoria
-|       |-- persistence/               # utilidades SQLite
-|       `-- di/                        # build_container
-|-- dev-requirements.txt               # Dependencias de desarrollo (pytest)
-|-- frontend/
-|   |-- index.html                     # Shell
-|   |-- app.js                         # Bootstrap UI
-|   |-- styles.css                     # Paleta y layout (frontend/styles.css también existe en raíz)
-|   |-- assets/                        # Recursos estáticos
-|   `-- src/
-|       |-- main.js                    # Router + montaje
-|       |-- config.js                  # Rutas y constantes
-|       |-- components/                # Navbar, overlays, etc.
-|       |-- pages/                     # Vistas por rol
-|       |   |-- DashboardOperatorFixed.js  # Panel Operador (principal)
-|       |   |-- DashboardVet.js            # Panel Veterinario
-|       |   |-- DashboardAdopter.js        # Panel Adoptante
-|       |   `-- ... (Adopt, Pets, etc.)
-|       |-- services/                  # Clientes API (animales, visitas, etc.)
-|       |-- state/                     # Store simple y auth
-|       `-- utils/                     # Utilidades (roles, etc.)
-|-- render.yaml                        # Configuración Render
-|-- Procfile                           # Procfile para PaaS
-`-- README.md                          # Este documento
+├── .github/
+│   └── workflows/
+│       ├── pages.yml
+│       └── backend-tests.yml
+│
+├── backend/
+│   ├── app.py
+│   ├── requirements.txt
+│   ├── tests/
+│   └── src/
+│       ├── controllers/
+│       ├── domain/
+│       ├── repositories/
+│       ├── persistence/
+│       └── di/
+│
+├── frontend/
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   ├── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── services/
+│       ├── state/
+│       └── utils/
+│
+├── render.yaml
+├── Procfile
+└── README.md
 ```
 
-Notas de arquitectura:
-- Capas: Controllers -> Repositorios (DBroker) -> Persistencia (SQLite). El dominio no depende de infraestructura.
-- Seleccion de persistencia via `PERSISTENCE=sqlite|memory` (ver `repositories/factory.py`).
-- La UI aplica guardas por rol consultando `/api/auth/me`.
+## API y casos de uso
 
-## Casos de Uso y Endpoints
+Entre los principales endpoints se encuentran:
 
-Formatos de fecha: `Date` -> `YYYY-MM-DD`, `DateTime` -> `YYYY-MM-DDTHH:MM:SS`.
+### Autenticación
 
-- CU 1 - Registro (POST `/api/auth/registro`, GET `/api/auth/confirmar`)
-  - Validaciones: nombre requerido, email valido, contrasena segura, terminos aceptados, email unico.
-- CU 2 - Gestion de Animales
-  - Alta POST `/api/animales`: nombre y foto obligatorios; duplicado 409 "Posible duplicado; confirmar"; estado inicial "Pendiente de Control".
-  - Modificacion PUT `/api/animales/{id}`: validaciones y auditoria.
-  - Baja POST `/api/animales/{id}/baja`: bloquea si hay dependencias.
-- CU 3 - Control Sanitario POST `/api/controles`: requiere diagnostico; resultado actualiza estado del animal.
-- CU 4 - Busqueda GET `/api/animales/buscar`: valida formato y filtros; responde 404 si no hay resultados.
-- CU 5 - Solicitud (Adoptante) POST `/api/solicitudes`: valida disponibilidad y terminos; soporta modificar/cancelar.
-- CU 6 - Gestionar solicitud (Operador): poner en revision, aprobar, rechazar (motivo), anular.
-- CU 7 - Visitas (Operador): programar, reprogramar, cancelar con deteccion de conflictos.
-- CU 8 - Seguimiento (Operador/Veterinario): alta, modificar, cancelar con validaciones.
-  - Alta puede referenciar una solicitud por `SolicitudId` o indicar solo el `AnimalId`. Si se envía `SolicitudId` y no existe, el backend intenta resolverlo como `AnimalId` del expediente más reciente.
+```text
+POST /api/auth/registro
+GET  /api/auth/confirmar
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/me
+```
 
-Endpoints de referencia:
-- Auth: `POST /api/auth/registro`, `GET /api/auth/confirmar`, `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/promote`, `GET /api/auth/me`
-- Usuarios: `GET /api/usuarios`, `POST /api/usuarios`
-- Animales: `GET /api/animales`, `POST /api/animales`, `PUT /api/animales/{id}`, `POST /api/animales/{id}/baja`, `GET /api/animales/buscar`
-- Controles: `GET /api/controles?animalId=`, `POST /api/controles`
-- Solicitudes: `GET /api/solicitudes`, `POST /api/solicitudes`, `PUT /api/solicitudes/{id}`, `POST /api/solicitudes/{id}/cancelar`, `POST /api/solicitudes/{id}/poner-en-revision`, `POST /api/solicitudes/{id}/aprobar`, `POST /api/solicitudes/{id}/rechazar`, `POST /api/solicitudes/{id}/anular`
-- Visitas: `POST /api/visitas`, `PUT /api/visitas/{id}`, `POST /api/visitas/{id}/cancelar`
-- Seguimientos: `POST /api/seguimientos`, `PUT /api/seguimientos/{id}`, `POST /api/seguimientos/{id}/cancelar`
-- Entregas (opcion A): `POST /api/entregas/aviso` (publico), `GET /api/entregas` (operador), `GET /api/entregas/{id}`, `DELETE /api/entregas/{id}`
-  - Nota: `/api/entregas/aviso` limita a 5 solicitudes por minuto por IP para evitar spam.
+### Animales
 
-## Notas de mantenimiento
+```text
+GET  /api/animales
+POST /api/animales
+PUT  /api/animales/{id}
+POST /api/animales/{id}/baja
+GET  /api/animales/buscar
+```
 
-- Robustecimos las transiciones de estado de solicitudes en el panel de operador. Ahora las rutas para “poner en revisión” y “anular” aceptan ambas variantes de texto de estado (“En revisión”/“En revisi��n”) y usan constantes de dominio al actualizar, evitando errores por codificación al comparar estados. No hay cambios de API.
- - Seguimientos: el endpoint de alta ahora acepta `AnimalId` además de `SolicitudId`. Para mantener compatibilidad con el frontend actual, si se envía `SolicitudId` y no corresponde a una solicitud válida, el sistema lo interpreta como `AnimalId` y vincula el seguimiento al expediente más reciente del animal.
+### Controles sanitarios
 
-## UI por rol (frontend)
+```text
+GET  /api/controles
+POST /api/controles
+```
 
-- Rol actual: `/api/auth/me`.
-- Guardas: solo se muestran secciones permitidas (`public`, `adoptante`, `operador`, `veterinario`).
-- Operador: puede precargar altas desde avisos y archivar avisos.
-- Navbar: agregar un botón de acceso al panel según rol. Si el usuario es `operador` navega al panel de Operador; si es `veterinario` navega al panel de Clínica. No debe mostrarse para `adoptante` ni `public`.
- - Operador (UI): formularios del panel remaquetados en grilla para alta/modificación/baja, visitas y seguimientos; campos alineados, acciones claras y mensajes de estado.
+### Solicitudes de adopción
 
-## Documentacion por carpeta
+```text
+GET  /api/solicitudes
+POST /api/solicitudes
+PUT  /api/solicitudes/{id}
+POST /api/solicitudes/{id}/aprobar
+POST /api/solicitudes/{id}/rechazar
+POST /api/solicitudes/{id}/cancelar
+```
 
-- Frontend: ver `frontend/README.md` (estructura, roles, como apuntar a otra API).
-- Backend: ver `backend/README.md` (capas, arbol detallado, variables, ejecucion local).
+### Visitas y seguimientos
 
-## Actores y RBAC
+```text
+POST /api/visitas
+PUT  /api/visitas/{id}
 
-- Adoptante: solicita adopcion, gestiona sus solicitudes, visitas y seguimientos.
-- Entregador: vecino o voluntario que notifica un animal al centro (solo "aviso de entrega").
-- Veterinario: registra controles sanitarios y seguimientos.
-- Operador: gestiona animales, solicitudes, visitas y avisos de entrega.
-- DBroker: componente interno que abstrae la base de datos (repositorios/factoria).
+POST /api/seguimientos
+PUT  /api/seguimientos/{id}
+```
 
-La UI aplica guardas segun `Usuario.Tipo`, consultando `/api/auth/me` y ocultando secciones no autorizadas.
+## Testing
 
+El backend cuenta con pruebas automatizadas realizadas con **Pytest**.
 
-## Pruebas (backend)
+Para ejecutar los tests:
 
-- Requisitos: Python 3.10+ y `pip` instalados.
-- Instala dependencias de app y desarrollo: `pip install -r requirements.txt -r dev-requirements.txt`
-- Ejecuta tests desde `backend/`: `pytest -q`
-- Los tests usan `PERSISTENCE=memory` y no escriben en disco.
-- CI: se incluyó `/.github/workflows/backend-tests.yml` para correr pytest en GitHub Actions.
+```bash
+pip install -r requirements.txt -r dev-requirements.txt
+```
 
-## Notas de UI (fichas con rollover)
+Desde la carpeta `backend/`:
 
-- En los paneles de Operador y Veterinario las fichas de animales ahora aparecen como un rollover al pasar el mouse por el nombre/ítem del animal.
-- El rollover muestra TODOS los campos relevantes del animal más su foto (si está disponible).
-- Implementación no intrusiva: se inyecta un contenedor flotante con estilos inline; no requiere cambios de backend ni de build.
+```bash
+pytest -q
+```
 
+Los tests pueden utilizar persistencia en memoria para evitar modificaciones sobre la base de datos.
 
+Además, el proyecto incluye un workflow de **GitHub Actions** que ejecuta automáticamente los tests del backend.
 
+## Despliegue
+
+### Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?repo=PiliDG/Patitas-y-Bigotes&environment=production)
+
+Railway detecta el proyecto Python y utiliza el `Procfile`:
+
+```text
+web: python backend/app.py
+```
+
+### Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/PiliDG/Patitas-y-Bigotes)
+
+Para el despliegue se utilizan:
+
+```text
+SECRET_KEY=<clave segura>
+PERSISTENCE=sqlite
+DB_FILE=data/app.db
+```
+
+También puede configurarse `ALLOWED_ORIGINS` según el entorno.
+
+El archivo `render.yaml` contiene la configuración necesaria para crear el servicio.
+
+## Documentación adicional
+
+El repositorio cuenta con documentación específica para cada parte del proyecto:
+
+* `frontend/README.md` — estructura del frontend, roles y configuración de la API.
+* `backend/README.md` — arquitectura, persistencia, variables y ejecución local.
+
+## Estado del proyecto
+
+Proyecto académico desarrollado como aplicación Full Stack funcional, con frontend, backend, persistencia, autenticación por roles, testing automatizado y configuración para despliegue.
